@@ -432,14 +432,8 @@ process_service_request(From, Module, Request, Args, State,
            end,
     try case Module:init(Args, State#csi_service_state.service_state) of
             {ok, PState} ->
-                {Reply, EState} = Module:Request(Args, PState),
-                case NeedReply of
-                    true ->
-                        gen_server:reply(From, Reply);
-                    _ ->
-                        ok
-                end,
-                Module:terminate(normal, EState);
+                execute_service_request(From, Module, Request, Args, PState,
+                                        NeedReply, TRef);
             WAFIT ->
                 gen_server:reply(From, WAFIT)
         end
@@ -461,6 +455,34 @@ process_service_request(From, Module, Request, Args, State,
         RealTRef ->
             erlang:cancel_timer(RealTRef)
     end.
+
+execute_service_request(From, Module, Request, Args, PState, NeedReply, TRef) ->
+    try
+        {Reply, EState} = Module:Request(Args, PState),
+        case NeedReply of
+            true ->
+                gen_server:reply(From, Reply);
+            _ ->
+                ok
+        end,
+        Module:terminate(normal, EState)
+    catch
+        A:B ->
+            report_error(A, B, From, erlang:get_stacktrace(), Module, Request, Args, TRef),
+            Module:terminate(exception, PState),
+            erlang:exit(exception)
+    end.
+
+report_error(From, A, B, Stack, Module, Request, Args, TRef) ->
+    log_error(A, B, Stack, Module, Request, Args),
+    catch gen_server:reply(From, {error, exception}),
+    _ = case TRef of
+            undefined ->
+                ok;
+            RealTRef0 ->
+                erlang:cancel_timer(RealTRef0)
+        end.
+    
 
 %% handle_cast/2
 %% ====================================================================
