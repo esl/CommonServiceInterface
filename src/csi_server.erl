@@ -31,7 +31,7 @@
 %% API functions
 %% ====================================================================
 
--export([process_service_request/8
+-export([process_service_request/9
         ]).
 
 -record(csi_service_state, {service_name,
@@ -316,11 +316,12 @@ handle_call({call_p, Request, Args, TimeoutForProcessing} = R, From, State) ->
                               [From, State#csi_service_state.service_module,
                                Request, Args, State,
                                find_timeout(TimeoutForProcessing, State),
-                               self(), true]),
+                               self(), true, Ref]),
     ets:insert(State#csi_service_state.stats_process_table, {Pid,
                                                              Ref,
                                                              Request,
-                                                             R}),
+                                                             R,
+                                                             From}),
     {noreply, State};
 
 handle_call({call_s, Request, Args} = R, _From, State) ->
@@ -352,9 +353,9 @@ handle_call({post_p, Request, Args, TimeoutForProcessing} = R, From, State) ->
                               [From, State#csi_service_state.service_module,
                                Request, Args, State,
                                find_timeout(TimeoutForProcessing, State),
-                               self(), true]),
+                               self(), true, Ref]),
     ets:insert(State#csi_service_state.stats_process_table,
-               {Pid, Ref, Request, R}),
+               {Pid, Ref, Request, R, From}),
     {reply, {posted, Pid, From}, State};
 
 handle_call({cast_p, Request, Args, TimeoutForProcessing} = R, From, State) ->
@@ -364,9 +365,9 @@ handle_call({cast_p, Request, Args, TimeoutForProcessing} = R, From, State) ->
                               [From, State#csi_service_state.service_module,
                                Request, Args, State,
                                find_timeout(TimeoutForProcessing, State),
-                               self(), false]),
+                               self(), false, Ref]),
     ets:insert(State#csi_service_state.stats_process_table,
-               {Pid, Ref, Request, R}),
+               {Pid, Ref, Request, R, From}),
     {reply, {casted, Pid} , State};
 
 handle_call({Request, Args}, From, State) ->
@@ -406,7 +407,7 @@ handle_call({Request, Args}, From, State) ->
     end.
 
 process_service_request(From, Module, Request, Args, State,
-                        TimeoutForProcessing, Parent, NeedReply) ->
+                        TimeoutForProcessing, Parent, NeedReply, Ref) ->
     TRef = case TimeoutForProcessing of
                infinity ->
                    undefined;
@@ -418,13 +419,15 @@ process_service_request(From, Module, Request, Args, State,
                                           From,
                                           Module,
                                           Request,
-                                          Args};
+                                          Args,
+                                          Ref};
                                      false ->
                                          {kill_worker_noreply,
                                           self(),
                                           Module,
                                           Request,
-                                          Args}
+                                          Args,
+                                          Ref}
                                  end,
                    erlang:send_after(RealTimeout,
                                      Parent,
@@ -482,7 +485,6 @@ report_error(From, A, B, Stack, Module, Request, Args, TRef) ->
             RealTRef0 ->
                 erlang:cancel_timer(RealTRef0)
         end.
-    
 
 %% handle_cast/2
 %% ====================================================================
@@ -527,7 +529,7 @@ handle_info(Info, State) ->
                 {'EXIT', Pid, Reason} ->
                     case ets:lookup(
                            State#csi_service_state.stats_process_table, Pid) of
-                        [{Pid, Ref, Request, R}] ->
+                        [{Pid, Ref, Request, R, From}] ->
                             case Reason =:= normal of
                                 true ->
                                     collect_stats(stop, State, Request, R, Ref);
@@ -536,7 +538,12 @@ handle_info(Info, State) ->
                                                   State,
                                                   undefined,
                                                   undefined,
-                                                  Ref)
+                                                  Ref),
+                                    catch gen_server:reply(From, {error, Reason}),
+                                    lager:error("Abnormal termination when calling"
+                                                "~p:~p. Reason:~p. Info:~p",
+                                                [State#csi_service_state.service_module,
+                                                 Request, Reason, R])
                             end,
                             ets:delete(
                               State#csi_service_state.stats_process_table, Pid);
@@ -546,18 +553,28 @@ handle_info(Info, State) ->
                                        " from process table~n",
                                        [Pid, WAFIT])
                     end;
-                {kill_worker_reply, Pid, CallerPid, Module, Request, Args} ->
-                    catch gen_server:reply(CallerPid, {error, timeout_killed}),
-                    ?LOGFORMAT(warning,
-                               "Worker killed with reply. Pid:~p. "
-                               "Called function was: ~p:~p(~p)~n",
-                               [Pid, Module, Request, Args]),
-                    erlang:exit(Pid, kill);
-                {kill_worker_noreply, Pid, Module, Request, Args} ->
-                    ?LOGFORMAT(warning, "Worker killed with no reply Pid:~p. "
-                               "Called function was: ~p:~p(~p)~n",
-                               [Pid, Module, Request, Args]),
-                    erlang:exit(Pid, kill);
+                {kill_worker_reply, Pid, CallerPid, Module, Request, Args, Ref} ->
+                    case ets:lookup(State#csi_service_state.stats_process_table, Pid) of
+                        [{Pid, Ref, Request, _, _}] ->
+                            catch gen_server:reply(CallerPid, {error, timeout_killed}),
+                            ?LOGFORMAT(warning,
+                                       "Worker killed with reply. Pid:~p. "
+                                       "Called function was: ~p:~p(~p)~n",
+                                       [Pid, Module, Request, Args]),
+                            erlang:exit(Pid, kill);
+                        _ ->
+                            ok
+                    end;
+                {kill_worker_noreply, Pid, Module, Request, Args, Ref} ->
+                    case ets:lookup(State#csi_service_state.stats_process_table, Pid) of
+                        [{Pid, Ref, Request, _, _}] ->
+                            ?LOGFORMAT(warning, "Worker killed with no reply Pid:~p. "
+                                       "Called function was: ~p:~p(~p)~n",
+                                       [Pid, Module, Request, Args]),
+                            erlang:exit(Pid, kill);
+                        _ ->
+                            ok
+                    end;
                 WAFIT ->
                     ?LOGFORMAT(warning,
                                "Unhandled message received for service ~p."
