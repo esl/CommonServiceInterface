@@ -21,6 +21,7 @@
 
 -export([ start/2,
           start_link/2,
+          start_link_global/2,
           start/3,
           start_link/3,
           start/4,
@@ -159,7 +160,10 @@ start(ServerName, Module, InitArgs) ->
     Error :: {already_started, Pid} | term().
 %% ====================================================================
 start(ServerName, Module, InitArgs, Options) ->
-    gen_server:start({local, ServerName},
+    start(ServerName, Module, InitArgs, Options, local).
+
+start(ServerName, Module, InitArgs, Options, Scope) ->
+    gen_server:start({Scope, ServerName},
                      ?CSI_SERVER_MODULE,
                      {ServerName, Module, InitArgs, Options},
                      []).
@@ -177,6 +181,9 @@ start(ServerName, Module, InitArgs, Options) ->
 
 start_link(ServerName, Module) ->
     start_link(ServerName, Module, undefined).
+start_link_global(ServerName, Module) ->
+  start_link( ServerName, Module,
+              undefined, ?CSI_DEFAULT_OPTIONS, global).
 
 %% start_link/3
 %% ====================================================================
@@ -205,7 +212,10 @@ start_link(ServerName, Module, InitArgs) ->
     Error :: {already_started, Pid} | term().
 %% ====================================================================
 start_link(ServerName, Module, InitArgs, Options) ->
-    gen_server:start_link({local, ServerName},
+  start_link(ServerName, Module, InitArgs, Options, local).
+
+start_link(ServerName, Module, InitArgs, Options, Scope) ->
+    gen_server:start_link({Scope, ServerName},
                           ?CSI_SERVER_MODULE,
                           {ServerName, Module, InitArgs, Options},
                           []).
