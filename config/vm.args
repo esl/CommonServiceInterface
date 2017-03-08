@@ -2,7 +2,7 @@
 -name csi_server
 
 ## Cookie for distributed erlang
--setcookie csi_server
+-setcookie csi_release
 
 ## Heartbeat management; auto-restarts VM if it dies or becomes unresponsive
 ## (Disabled by default..use with caution!)
@@ -17,5 +17,5 @@
 
 ## Tweak GC to run more often
 ##-env ERL_FULLSWEEP_AFTER 10
--hidden
--connect_all false
+#-hidden
+#-connect_all false

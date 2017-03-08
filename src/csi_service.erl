@@ -77,7 +77,9 @@ services(_Args, State) ->
                      || Name <- global:registered_names(),
                          node(Pid = global:whereis_name(Name)) =:= node(),
                          lists:member(Pid, GroupPids)],
-    LocalNames = [ Name || Pid <- GroupPids,
+    LocalNames =
+      [ erlang:process_info(Pid, registered_name)
+        || Pid <- pg2:get_local_members(?CSI_SERVICE_PROCESS_GROUP_NAME),
                     (Name = erlang:process_info(Pid, registered_name)) =/= []],
     {GlobalNames ++ LocalNames, State}.
 
