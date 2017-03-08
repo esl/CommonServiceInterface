@@ -24,6 +24,7 @@
           start_link_global/2,
           start/3,
           start_link/3,
+          start_link_global/3,
           start/4,
           start_link/4,
           stop/1,
@@ -198,6 +199,9 @@ start_link_global(ServerName, Module) ->
 %% ====================================================================
 start_link(ServerName, Module, InitArgs) ->
     start_link(ServerName, Module, InitArgs, ?CSI_DEFAULT_OPTIONS).
+start_link_global(ServerName, Module, InitArgs) ->
+  start_link( ServerName, Module,
+              InitArgs, ?CSI_DEFAULT_OPTIONS, global).
 
 %% start_link/4
 %% ====================================================================
