@@ -71,9 +71,15 @@ start_services(_Args, State) ->
     {start_servers(ServerList), State}.
 
 services(_Args, State) ->
-    {[erlang:process_info(X, registered_name) ||
-        X <- pg2:get_members(?CSI_SERVICE_PROCESS_GROUP_NAME)],
-     State}.
+    %% global processes running on local node
+    GroupPids = pg2:get_members(?CSI_SERVICE_PROCESS_GROUP_NAME),
+    GlobalNames = [ {registered_name, {global, Name}}
+                     || Name <- global:registered_names(),
+                         node(Pid = global:whereis_name(Name)) =:= node(),
+                         lists:member(Pid, GroupPids)],
+    LocalNames = [ Name || Pid <- GroupPids,
+                    (Name = erlang:process_info(Pid, registered_name)) =/= []],
+    {GlobalNames ++ LocalNames, State}.
 
 handle_call({Request, Args}, _From, State) ->
     ?LOGFORMAT(info,
