@@ -1,7 +1,7 @@
 {application, csi, [
 	{description, "Common Service Interface service and library."},
-	{vsn, "0.0.1"},
-	{id, "git"},
+	{vsn, "0.0.2"},
+	{id, "csi"},
 	{modules, []},
 	{registered, []},
 	{applications, [
