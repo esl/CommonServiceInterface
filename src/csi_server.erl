@@ -518,12 +518,23 @@ handle_cast(_Msg, State) ->
     Timeout :: non_neg_integer() | infinity.
 %% ====================================================================
 handle_info(Info, State) ->
-    case try (State#csi_service_state.service_module):
-             handle_info(Info, State#csi_service_state.service_state)
-         catch
-             _:_ ->
-                 continue
-         end of
+  TryCallback =
+    case erlang:function_exported(State#csi_service_state.service_module,
+                                  handle_info, 2) of
+      true ->
+        try (State#csi_service_state.service_module):
+              handle_info(Info, State#csi_service_state.service_state)
+        catch
+          Error:Reason ->
+            ?LOGFORMAT(error, "~p:~p in ~p:handle_info(~p,~p). Stack:~p",
+              [ Error, Reason, State#csi_service_state.service_module,
+                Info, State, erlang:get_stacktrace() ]),
+            continue
+        end;
+      _ ->
+        continue
+    end,
+    case TryCallback of
         continue ->
             case Info of
                 {'EXIT', Pid, Reason} ->
