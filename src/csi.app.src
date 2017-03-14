@@ -1,6 +1,6 @@
 {application, csi, [
 	{description, "Common Service Interface service and library."},
-	{vsn, "0.0.3"},
+	{vsn, "0.0.4"},
 	{id, "csi"},
 	{modules, []},
 	{registered, []},

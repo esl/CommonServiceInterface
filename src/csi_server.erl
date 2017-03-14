@@ -525,9 +525,9 @@ handle_info(Info, State) ->
         try (State#csi_service_state.service_module):
               handle_info(Info, State#csi_service_state.service_state)
         catch
-          Error:Reason ->
+          Error0:Reason0 ->
             ?LOGFORMAT(error, "~p:~p in ~p:handle_info(~p,~p). Stack:~p",
-              [ Error, Reason, State#csi_service_state.service_module,
+              [ Error0, Reason0, State#csi_service_state.service_module,
                 Info, State, erlang:get_stacktrace() ]),
             continue
         end;
