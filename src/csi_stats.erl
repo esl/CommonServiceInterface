@@ -78,7 +78,7 @@ req_per_sec(start, Request, _R, _Ref, Params, Tab, TempTab, TimeStamp) ->
                 Values
         end,
     RTL =
-        case proplists:get_value("nr_of_timestamps",
+        case proplists:get_value("time_window",
                                  Params,
                                  50) =< length(ReceivedTimestampList) of
             true ->
