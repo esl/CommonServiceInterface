@@ -80,7 +80,7 @@ services(_Args, State) ->
     LocalNames =
       [ erlang:process_info(Pid, registered_name)
         || Pid <- pg2:get_local_members(?CSI_SERVICE_PROCESS_GROUP_NAME),
-                    (Name = erlang:process_info(Pid, registered_name)) =/= []],
+                    (erlang:process_info(Pid, registered_name)) =/= []],
     {GlobalNames ++ LocalNames, State}.
 
 handle_call({Request, Args}, _From, State) ->
